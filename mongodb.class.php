@@ -83,7 +83,7 @@ class Mongo_DB{
         }
         try {
             $this->_collection = $this->_db->selectCollection($collectionName);
-            //P("select $collectionName database succeessfully");
+            P("select $collectionName table succeessfully");
         } catch (Exception $e) {
             E($e);
         }
