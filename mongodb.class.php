@@ -1,5 +1,6 @@
 <?php
 include 'function.php';
+require 'config.php';
 /**
  * PHP 操作MongoDB数据库
  *
@@ -12,10 +13,17 @@ class Mongo_DB{
     protected $_collection;
     protected $configs;
 
-    function __construct($config=''){
+    function __construct(){
+        global $config;
         $this->configs = $config;
+        P('Your database config:'.json_encode($config));
         $this->connect();
         $this->selectDB($config['database']);
+    }
+
+    function __destruct(){
+        $this->_connection->close();
+        P('Exit.');
     }
     /**
      * 连接数据库
@@ -95,6 +103,7 @@ class Mongo_DB{
             $this->selectCollection($collectionName);
         //}
         try {
+            P(self::showCommand('insert', array(), $dataArray));
             $res = $this->_collection->insert($dataArray);
             //print_r($dataArray);
             $id = $dataArray['_id'];
@@ -127,6 +136,7 @@ class Mongo_DB{
                 $cursor = $this->_collection->find($where)->snapshot();//忽略遍历游标时的文档更新
             }
             $resultSet = null;
+            P(self::showCommand('select', $where));
             if ($findOne) {
                 P('From findOne');
                 foreach ($cursor as $key => $value) {
@@ -185,8 +195,12 @@ class Mongo_DB{
                 'multiple' => false
              );
         }
+        $data = self::parseData($newData);
+        P(self::showCommand('update', $where, $data));
         try {
-            $res = $this->_collection->update($where, array('$set' => $newData), $options);
+            // P('Test:'.json_encode($data));
+            $res = $this->_collection->update($where, $data, $options);
+            //$res = $this->_collection->update($where, array('$set' => $newData), $options);
             $res2 = Array2String($res);
             P("Update succeessfully : $res2");
             return $res;
@@ -220,6 +234,7 @@ class Mongo_DB{
     public function delete($collectionName, $where){
         $this->selectCollection($collectionName);
         try {
+            P(self::showCommand('remove', $where));
             $res = $this->_collection->remove($where);
             $res = Array2String($res);
             P("Delete succeessfully : $res");
@@ -227,5 +242,49 @@ class Mongo_DB{
         } catch (Exception $e) {
             E($e);
         }
+    }
+    /**
+     * 处理需要插入的数据
+     * @param   $data       需要处理的数据
+     * @return  $result     处理好的数据
+     */
+    private function parseData($data){
+        $result   =  array();
+        foreach ($data as $key => $val){
+            if(is_array($val)) {
+                switch($val[0]) {
+                    case 'inc':
+                        $result['$inc'][$key]  =  (int)$val[1];
+                        break;
+                    case 'set':
+                    case 'unset':
+                    case 'push':
+                    case 'pushall':
+                    case 'addtoset':
+                    case 'pop':
+                    case 'pull':
+                    case 'pullall':
+                        $result['$'.$val[0]][$key] = $val[1];
+                        break;
+                    default:
+                        $result['$set'][$key] =  $val;
+                }
+            }else{
+                $result['$set'][$key]    = $val;
+            }
+        }
+        return $result;
+    }
+    /**
+     * 拼接操作对应的命令
+     * @param  [array] $opt     [操作名称]
+     * @param  [array] $where   [查询语句]
+     * @param  [array] $data    [更新时的数据]
+     * @return [string]command  [拼接的命令字符串]
+     */
+    private function showCommand($opt, $where, $data=array()){
+        $whereSQL = empty($where) ? "''" : json_encode($where);
+        $dataSQL = empty($data) ? "''" : json_encode($data);
+        return 'commad SQL: db.'.$this->_db.".$opt($whereSQL,$dataSQL)";
     }
 }

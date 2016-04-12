@@ -11,6 +11,9 @@ function E($msg = ''){
 function Array2String($array){
     $result = 'Array( ';
     foreach ($array as $key => $value) {
+        if (is_array($value)) {
+            $tmp[] = "[$key] => ".Array2String($value);
+        }else
         $tmp[] = "[$key] => $value";
     }
     return $result.implode(', ', $tmp).")";
